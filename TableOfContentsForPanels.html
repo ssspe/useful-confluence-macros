@@ -1,0 +1,34 @@
+## Macro title: Table of Contents for Panels
+## Macro has a body: Y or N
+## Body processing: Selected body processing option
+## Output: Selected output option
+##
+## Developed by: Spencer Robertson
+## Date created: 22/07/2019
+## Installed by: Spencer Robertson
+## @noparams
+## Creates a Table of Contents based on Panel Titles
+
+<script>
+    AJS.toInit(function() {
+      var panelArray = [];
+      var mainContent = AJS.$('#main-content')
+      var panels = AJS.$(mainContent).find('div.panel:not(.code)');
+      var table = AJS.$('#panelTableOfContents')
+
+      jQuery.each(panels, function(index, panel) {
+        if (AJS.$(panel).parent().attr('class') != 'panelContent') {
+          var panelHeader = AJS.$(panel).children('div.panelHeader');
+          var panelHeaderName = AJS.$(panelHeader).find('b');
+          panelArray.push(panelHeaderName.text());
+          AJS.$(panelHeader).attr('id', panelHeaderName.text().replace(/\s/g, ''));
+
+          AJS.$(table).append("<li><a href='#" + panelHeaderName.text().replace(/\s/g, '') + "'>" + panelHeaderName.text() + "</a></li>")
+        }
+      })
+    });
+
+</script>
+
+<ul id='panelTableOfContents'>
+</ul>

@@ -1,0 +1,29 @@
+## Macro title: Custom Jira Chart for PTC
+## Macro has a body: Y or N
+## Body processing: Selected body processing option
+## Output: Selected output option
+##
+## Developed by: Spencer Robertson
+## Date created: 22/07/2019
+## Installed by: Spencer Robertson
+
+## Creates a Custom Jira Chart based off PTC templating
+## @param JQL:title=JQL|type=string|required=true|desc=Add the JQL here
+
+/* All custom code here, can be updated to change sorting or stat type. Please replace YOUR_APP_ID*/
+<ac:macro ac:name="jirachart">
+    <ac:parameter ac:name="jql">$paramJQL</ac:parameter>
+    <ac:parameter ac:name="border">false</ac:parameter>
+    <ac:parameter ac:name="chartType">twodimensional</ac:parameter>
+    <ac:parameter ac:name="numberToShow">10</ac:parameter>
+    <ac:parameter ac:name="isAuthenticated">true</ac:parameter>
+    <ac:parameter ac:name="server">JIRA</ac:parameter>
+    <ac:parameter ac:name="serverId">YOUR_APP_ID</ac:parameter>
+    <ac:parameter ac:name="showinfor">false</ac:parameter>
+    <ac:parameter ac:name="statType">issuetype</ac:parameter>
+    <ac:parameter ac:name="width"></ac:parameter>
+    <ac:parameter ac:name="sortBy"></ac:parameter>
+    <ac:parameter ac:name="sortDirection"></ac:parameter>
+    <ac:parameter ac:name="xstattype">statuses</ac:parameter>
+    <ac:parameter ac:name="ystattype">issuetype</ac:parameter>
+</ac:macro>

@@ -1,0 +1,127 @@
+## Macro title: Excel Table equations
+## Macro has a body: Y or N
+## Body processing: Selected body processing option
+## Output: Selected output option
+##
+## Developed by: My Name
+## Date created: dd/mm/yyyy
+## Installed by: My Name
+
+## Apply's equations to an excel table for an entire column.
+## @param table:title=Table Number|type=int|required=true|default=1|desc=The number of the table you want to format.
+## @param format:title=Formatting|type=string|desc=Apply your formatting here. Must be in the format A=B+C or A=SUM(B:C), where A is the column you want to change, and B/C are the columns to get information from. You can use +, -, * or / operands.
+
+
+<script>
+  var math_it_up = {
+      '+': function (x, y) { return parseFloat(x) + parseFloat(y) },
+      '-': function (x, y) { return parseFloat(x) - parseFloat(y) },
+      '*': function (x, y) { return parseFloat(x) * parseFloat(y) },
+      '/': function (x, y) { return parseFloat(x) / parseFloat(y) }
+  };
+
+  /*
+    When confluence's version of jQuery loads this is initiated.
+  */
+  AJS.toInit(function() {
+    var tables = AJS.$('table');
+    if('$paramformat'.includes("SUM")) {
+
+      // We have an excel style function
+      var evaluatorPosition = letterPlacement('$paramformat'.charAt(0));
+      var firstOperandPosition = letterPlacement('$paramformat'.charAt(6));
+      var secondOperandPosition = letterPlacement('$paramformat'.charAt(8));
+
+      AJS.$(tables[$paramtable - 1]).find("tr").slice(1).each(function() {
+        var columns = $(this).find('td');
+        var total = 0;
+        var type = "";
+        for(var i = firstOperandPosition; i <= secondOperandPosition; i++) {
+          var value = tidyNumber($(columns[i]).text());
+          if (!isNaN(parseFloat(value[0]))) {
+            total += parseFloat(value[0]);
+            type = value[1]
+          }
+        }
+        $(columns[evaluatorPosition]).html(renderNumber(total, type));
+      })
+    } else {
+      // We have simple arithmatic
+      var evaluatorPosition = letterPlacement('$paramformat'.charAt(0));
+      var firstOperandPosition = letterPlacement('$paramformat'.charAt(2));
+      var secondOperandPosition = letterPlacement('$paramformat'.charAt(4));
+      var operand = '$paramformat'.charAt(3);
+
+      AJS.$(tables[$paramtable - 1]).find("tr").slice(1).each(function() {
+        var columns = $(this).find('td');
+        var firstValue = tidyNumber($(columns[firstOperandPosition]).text());
+        var secondValue = tidyNumber($(columns[secondOperandPosition]).text());
+        var temp = math_it_up[operand](firstValue[0], secondValue[0]);
+        $(columns[evaluatorPosition]).html(renderNumber(temp, firstValue[1]));
+        if (temp < 0) {
+          // Adding formatting here, pretty custom but can change if need to.
+          $(columns[evaluatorPosition]).css("background-color", "red");
+        }
+      })
+    }
+  })
+
+  function letterPlacement(letter) {
+    return letter.charCodeAt(0) - (letter === letter.toLowerCase() ? 97 : 65);
+  }
+
+  /*
+    Tidies up the number passed to it.
+    Returns just the number.
+  */
+  function tidyNumber(number) {
+    var temp = removeCommas(number)
+    return removeDolla(temp);
+  }
+
+  /*
+    Prepares the number to be rendered in the html
+    by adding commas and a money sign.
+  */
+  function renderNumber(number, type) {
+    var temp = addCommas(number);
+    return addDolla(temp, type);
+  }
+
+  /*
+    Remove commas from the number if it is above 1000.
+  */
+  function removeCommas(number) {
+    return number.replace(/,/g, "")
+  };
+
+  /*
+    Remove the money symbol from the number.
+  */
+  function removeDolla(number) {
+    if(number.includes('£')) {
+      return [number.replace(/£/g, ""), "£"]
+    } else if (number.includes('$')){
+      return [number.replace(/$/g, ""), "$"]
+    } else if (number.includes('€')){
+      return [number.replace(/€/g, ""), "€"]
+    } else {
+      return [number, ""]
+    }
+  };
+
+  /*
+    Adds commas based on the english settings.
+  */
+  function addCommas(number) {
+    return number.toLocaleString('en');
+  }
+
+  /*
+    Adds the money sign back to the number.
+  */
+  function addDolla(number, type) {
+    return type + number;
+  }
+
+</script>

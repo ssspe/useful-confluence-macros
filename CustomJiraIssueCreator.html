@@ -1,0 +1,433 @@
+## Macro title: Create Jira Issue
+## Macro has a body: Y
+## Body processing: Selected body processing option
+## Output: Selected output option
+##
+## Developed by: Spencer Robertson
+## Date created: 01/03/2019
+## Installed by: Spencer Robertson
+## This macro is used to create Jira Tickets
+## @param project:type=string|desc=Navigate to the Jira project associated with this space. Copy the Key and paste it here. E.g. https://www.jira.co.uk/projects/TEST/, copy the TEST.|required=true
+
+#set($containerManagerClass = $action.class.forName('com.atlassian.spring.container.ContainerManager'))
+#set($getInstanceMethod = $containerManagerClass.getDeclaredMethod('getInstance',null))
+#set($containerManager = $getInstanceMethod.invoke(null,null))
+#set($containerContext = $containerManager.containerContext)
+#set($userAccessor = $containerManager.containerContext.getComponent('userAccessor'))
+#set($users = $userAccessor.getUsersWithConfluenceAccessAsList() )
+
+#####################################
+##  CSS: Edit this to your liking  ##
+#####################################
+<style>
+    /* Modal Content/Box */
+    .modal {
+        display: none;
+        /* Hidden by default */
+        position: fixed;
+        /* Stay in place */
+        z-index: 10;
+        /* Sit on top */
+        left: 0;
+        top: 0;
+        width: 100%;
+        /* Full width */
+        height: 100%;
+        /* Full height */
+        overflow: auto;
+        /* Enable scroll if needed */
+        background-color: rgb(0, 0, 0);
+        /* Fallback color */
+        background-color: rgba(0, 0, 0, 0.4);
+        /* Black w/ opacity */
+    }
+    .modal-content {
+        background-color: #fefefe;
+        margin: 15% auto;
+        /* 15% from the top and centered */
+        border: 1px solid #888;
+        width: 80%;
+        border-radius: 5px;
+        /* Could be more or less, depending on screen size */
+    }
+
+    /* Field container for all fields */
+    .field-container {
+        padding: 10px;
+        border-bottom-style: solid;
+        border-color: lightgrey;
+        border-width: 2px;
+    }
+
+    /* Single field container grid */
+    .singleFieldContainer {
+        display: grid;
+        grid-template-columns: 25% 68%;
+        grid-gap: 10px;
+        padding: 10px;
+    }
+    .grid-item {
+        padding: 10px;
+        font-size: 15px;
+        text-align: center;
+    }
+    .grid-item-required {
+        padding: 10px;
+        font-size: 15px;
+        text-align: center;
+    }
+    .grid-item-required:after{
+         content:'*';
+         color:red;
+     }
+
+     /* Project and issue type selection container */
+    .project-container {
+        display: grid;
+        grid-template-columns: 50% 50%;
+        grid-gap: 10px;
+        padding: 20px;
+        border-bottom-style: solid;
+        border-color: lightgrey;
+        border-width: 2px;
+    }
+    .project-item {
+        padding: 10px;
+        font-size: 15px;
+        text-align: center;
+    }
+
+    /* Header container, contains the title */
+    .header-container {
+        border-bottom-style: solid;
+        padding: 10px;
+        border-color: lightgrey;
+        border-width: 2px;
+    }
+
+    /* Button container, holds create and cancel button */
+    .button-container {
+        padding: 10px;
+    }
+    .submit-button {
+      border: none;
+      color: white;
+      padding: 10px 20px;
+      text-align: center;
+      text-decoration: none;
+      display: inline-block;
+      font-size: 14px;
+      margin: 4px 2px;
+      cursor: pointer;
+      color: #fff;
+      background-color: #0052cc;
+      border-radius: 3px;
+    }
+    .cancel-button {
+      border: none;
+      color: white;
+      padding: 10px 20px;
+      text-align: center;
+      text-decoration: none;
+      display: inline-block;
+      font-size: 14px;
+      margin: 4px 2px;
+      cursor: pointer;
+      color: #fff;
+      background-color: grey;
+      border-radius: 3px;
+    }
+    .submit-button:hover {
+      background-color: #0066cc;
+    }
+</style>
+
+#####################################
+##             Scripts             ##
+#####################################
+<script>
+    /* Replace YOUR-APP-ID */
+    var confAppId = YOUR-APP-ID
+
+    var baseUrl = "https://your-confluence.co.uk/plugins/servlet/applinks/proxy?appId=" + confAppId + "&path=";
+    var projectSearch = "https://your-jira.co.uk/rest/api/2/project";
+    var issueTypeSearch = "https://your-jira.co.uk/rest/api/2/issue/createmeta?projectKeys=";
+    var createIssue = "https://your-jira.co.uk/rest/api/2/issue";
+    var modal = document.getElementById('myModal');
+    var currentIssueTypes = null;
+
+    AJS.toInit(function() {
+        AJS.$("#myBtn").click(function() {
+            AJS.$('#myModal').css('display', 'block');
+
+            /* Getting all projects from Jira and displaying in a list to the user */
+
+            jQuery.ajax({
+                type: "GET",
+                url: baseUrl + projectSearch,
+                dataType: "json",
+                async: false,
+                success: function(data) {
+                    var arr = [];
+                    var len = data.length;
+                    for (var i = 0; i < len; i++) {
+                        arr.push({
+                            key: [data[i].key, data[i].id],
+                            name: data[i].key + ' - ' + data[i].name
+                        });
+                    }
+
+                    jQuery.each(arr, function(i, p) {
+                        #if($paramproject)
+                            if('$paramproject' == p.key[0]) {
+                                $('#selectProject').append($('<option></option>').val(p.key).html(p.name));
+                                setProjects();
+                                arr.splice(i, 1);
+                                return false;
+                            }
+                        #end
+                    });
+
+                    jQuery.each(arr, function(i, p) {
+                        $('#selectProject').append($('<option></option>').val(p.key).html(p.name));
+                    });
+                }
+            });
+        });
+
+        AJS.$("#selectProject").change(function() {
+            setProjects()
+        });
+
+        /* Displaying a list of all associated issue types to the user */
+        AJS.$("#selectIssueType").change(function() {
+            clearBox('fieldContainer');
+            renderIssueType(currentIssueTypes[AJS.$("#selectIssueType").prop('selectedIndex')])
+        });
+    });
+
+    /* Displays all projects */
+    function setProjects() {
+        if (!AJS.$('#fieldContainer').length){
+            AJS.$('#modalContent').append($("<div class='field-container' id='fieldContainer'></div>"));
+        }
+
+        if (!AJS.$('#buttonContainer').length){
+            AJS.$('#modalContent').append($("<div class='button-container' id='buttonContainer'><button class='submit-button' onclick='submitJiraIssue()'>Create</button><button class='cancel-button' onclick='closeModal()'>Cancel</button></div>"));
+        }
+
+        AJS.$("#selectIssueType").empty()
+        clearBox('fieldContainer');
+        jQuery.ajax({
+            type: "GET",
+            url: baseUrl + issueTypeSearch + AJS.$("#selectProject option:selected").val() + "&expand=projects.issuetypes.fields",
+            dataType: "json",
+            async: false,
+            success: function(data) {
+                var arr = [];
+                var issueTypes = data.projects[0].issuetypes;
+                var len = issueTypes.length;
+                currentIssueTypes = issueTypes;
+                for (var i = 0; i < len; i++) {
+                    arr.push({
+                        key: issueTypes[i].id,
+                        name: issueTypes[i].name
+                    });
+                }
+                jQuery.each(arr, function(i, p) {
+                    $('#selectIssueType').append($('<option></option>').val(p.key).html(p.name));
+                });
+                renderIssueType(currentIssueTypes[0])
+            }
+        });
+    }
+
+    /* Renders the fields for a selected issue type */
+    function renderIssueType(issueType) {
+        var i = 1;
+        _.each(issueType.fields, function(field) {
+            renderField(field, i);
+            i++;
+        })
+    }
+
+    /* Closes the Modal box */
+    function closeModal() {
+        AJS.$('#myModal').css('display', 'none');
+    };
+
+    /* Creates the selected Jira issue */
+    function submitJiraIssue() {
+        var projectId = AJS.$("#selectProject option:selected").val().split(',')[1];
+        var issueTypeId = AJS.$("#selectIssueType option:selected").val();
+        var datos = {
+            "issues": [{
+                "fields": {
+                    "project": {
+                        "id": projectId
+                    },
+                    "issuetype": {
+                        "id": issueTypeId
+                    }
+                }
+            }]
+        };
+
+        AJS.$("span.grid-item-required").each(function(i, obj) {
+            var item = getValue(obj)
+            if (obj.id) {
+                datos.issues[0].fields[obj.id] = item;
+            }
+        });
+
+        AJS.$("span.grid-item").each(function(i, obj) {
+            var item = getValue(obj)
+            if (obj.id) {
+                datos.issues[0].fields[obj.id] = item;
+            }
+        });
+        var parameters = JSON.stringify(datos);
+
+        jQuery.ajax({
+            url: 'https://confluence.zirconhq.co.uk/rest/jira-integration/1.0/issues?applicationId=' + confAppId,
+            type: 'POST',
+            dataType: 'json',
+            contentType: 'application/json',
+            data: parameters,
+            processData: false,
+            async: false,
+            success: function(data) {
+                if (JSON.stringify(data).includes('You must specify') || JSON.stringify(data).includes('Operation value must be a string')) {
+                    alert('You are missing some of the required fields.');
+                } else if (JSON.stringify(data).includes('"key":')) {
+                    alert('Issue has been created.');
+                } else {
+                    // Dont know what we have here
+                    alert(JSON.stringify(data));
+                }
+            },
+            error: function(error) {
+                console.log('Error');
+            }
+        });
+    }
+
+    /* Gets the value of an input */
+    function getValue(obj) {
+        if (AJS.$("#input_" + (obj.id)).prop('tagName') == 'SELECT') {
+            var item = {'name': AJS.$("#input_" + (obj.id)).val()};
+        } else {
+            if (AJS.$("#input_" + (obj.id)).attr('type') == 'number') {
+                var item = parseInt(AJS.$("#input_" + (obj.id)).val());
+            }
+            else {
+                var item = AJS.$("#input_" + (obj.id)).val();
+            }
+        }
+
+        if (item == "" || item == "Choose a user...") {
+            item = null;
+        }
+
+        return item;
+    }
+
+    /* Clear an input */
+    function clearBox(elementID) {
+        document.getElementById(elementID).innerHTML = "";
+    }
+
+    /* Render a field, alot of custom code here that can be updated based on your use */
+    function renderField(field, index) {
+        var className = "item" + index
+        var gridClass = 'grid-item';
+        if (field.required) {
+            gridClass = 'grid-item-required'
+        }
+        switch (field.schema.type) {
+            case 'string':
+                AJS.$('#fieldContainer').append($("<div class='singleFieldContainer' id=" + className + "></div>"));
+                if (field.schema.customId) {
+                    AJS.$('#item' + index).append($('<span class=' + gridClass + ' id=customfield_' + field.schema.customId + '>' + field.name + '</span>'));
+                    AJS.$('#item' + index).append($("<input class='grid-item' type='text' id=input_customfield_" + field.schema.customId + ">"));
+                } else {
+                    AJS.$('#item' + index).append($('<span class=' + gridClass + ' id=' + field.schema.system + '>' + field.name + '</span>'));
+                    AJS.$('#item' + index).append($("<input class='grid-item' type='text' id=input_" + field.schema.system + ">"));
+                }
+                return;
+            case 'user':
+                var selectId = 'grid-item selectUser' + index;
+                AJS.$('#fieldContainer').append($("<div class='singleFieldContainer' id=" + className + "></div>"));
+                if (field.schema.customId) {
+                    AJS.$('#item' + index).append($('<span class=' + gridClass + ' id=customfield_' + field.schema.customId + '>' + field.name + '</span>'));
+                    AJS.$('#item' + index).append($("<select placeholder='Choose a User' class='" + selectId + "' id=input_customfield_" + field.schema.customId + " placeholder='Search..'><option selected='selected'>Choose a user...</option></select>"));
+                } else {
+                    AJS.$('#item' + index).append($('<span class=' + gridClass + ' id=' + field.schema.system + '>' + field.name + '</span>'));
+                    AJS.$('#item' + index).append($("<select class='" + selectId + "' id=input_" + field.schema.system + " placeholder='Search..'><option selected='selected'>Choose a user...</option></select>"));
+                }
+                #foreach($user in $users)
+                    $('select.grid-item.selectUser' + index).append($('<option></option>').val('${user.name}').html('${user.fullName}'));
+                #end
+                return;
+            case 'project':
+                //render projects
+                return;
+            case 'priority':
+                //render priority
+                return;
+            case 'array':
+                //render array
+                return;
+            case 'date':
+                AJS.$('#fieldContainer').append($("<div class='singleFieldContainer' id=" + className + "></div>"));
+                if (field.schema.customId) {
+                    AJS.$('#item' + index).append($('<span class=' + gridClass + ' id=customfield_' + field.schema.customId + '>' + field.name + '</span>'));
+                    AJS.$('#item' + index).append($("<input class='grid-item' type='date' id=input_customfield_" + field.schema.customId + ">"));
+                } else {
+                    AJS.$('#item' + index).append($('<span class=' + gridClass + ' id=' + field.schema.system + '>' + field.name + '</span>'));
+                    AJS.$('#item' + index).append($("<input class='grid-item' type='date' id=input_" + field.schema.system + ">"));
+                }
+
+                return;
+            case 'number':
+                AJS.$('#fieldContainer').append($("<div class='singleFieldContainer' id=" + className + "></div>"));
+                if (field.schema.customId) {
+                    AJS.$('#item' + index).append($('<span class=' + gridClass + ' id=customfield_' + field.schema.customId + '>' + field.name + '</span>'));
+                    AJS.$('#item' + index).append($("<input class='grid-item' type='number' id=input_customfield_" + field.schema.customId + ">"));
+                } else {
+                    AJS.$('#item' + index).append($('<span class=' + gridClass + ' id=' + field.schema.system + '>' + field.name + '</span>'));
+                    AJS.$('#item' + index).append($("<input class='grid-item' type='number' id=input_" + field.schema.system + ">"));
+                }
+                return;
+            default:
+                return;
+        }
+    }
+
+</script>
+
+#####################################
+##      Content for the macro      ##
+#####################################
+<div>
+    <button class='submit-button' id="myBtn">Create Jira Issue</button>
+    <!-- The Modal -->
+    <div id="myModal" class="modal">
+        <!-- Modal content -->
+        <div class="modal-content" id='modalContent'>
+            <div class='header-container'>
+                <h1> Create Jira Issue </h1>
+            </div>
+
+            <div class="project-container">
+                <select class="select project-item js-example-basic-single" id='selectProject'>
+                </select>
+                <select class="select project-item js-example-basic-single" id='selectIssueType'>
+                    <option selected="selected">
+                        Choose an issue type...
+                    </option>
+                </select>
+            </div>
+        </div>
+    </div>
+</div>
